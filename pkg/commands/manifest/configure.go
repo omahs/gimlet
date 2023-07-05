@@ -4,19 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gimlet-io/gimlet-cli/cmd/dashboard/config"
 	"github.com/gimlet-io/gimlet-cli/pkg/commands/chart"
 	"github.com/gimlet-io/gimlet-cli/pkg/dx"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/urfave/cli/v2"
-	"gopkg.in/yaml.v3"
+	giturl "github.com/whilp/git-urls"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/helmpath"
 	"helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/yaml"
 )
 
 var manifestConfigureCmd = cli.Command{
@@ -68,6 +74,18 @@ func configure(c *cli.Context) error {
 		err = yaml.Unmarshal(manifestString, &m)
 		if err != nil {
 			return fmt.Errorf("cannot unmarshal manifest: %s", err)
+		}
+
+		for _, dep := range m.Dependencies {
+			tfSpec := dep.Spec.(dx.TFSpec)
+			var vars []*tfconfig.Variable
+			variablesString, err := TfVariables(tfSpec.Module.Url)
+			if err != nil {
+				return fmt.Errorf("cannot read variables")
+			}
+
+			ParseVariables(variablesString, &vars)
+			fmt.Println(vars)
 		}
 	} else {
 		chartName, repoUrl, chartVersion, err := helmChartInfo(c.String("chart"))
@@ -211,4 +229,67 @@ func setManifestValues(m *dx.Manifest, values manifestValues) {
 	m.Env = values.Env
 	m.Namespace = values.Namespace
 	m.Values = values.Values
+}
+
+func TfVariables(moduleUrl string) ([]byte, error) {
+	gitAddress, err := giturl.Parse(moduleUrl)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse chart's git address: %s", err)
+	}
+	gitUrl := strings.ReplaceAll(moduleUrl, gitAddress.RawQuery, "")
+	gitUrl = strings.ReplaceAll(gitUrl, "?", "")
+
+	tmpDir, err := ioutil.TempDir("", "tfmodules")
+	defer os.RemoveAll(tmpDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create tmp file: %s", err)
+	}
+	opts := &git.CloneOptions{
+		URL: gitUrl,
+	}
+
+	repo, err := git.PlainClone(tmpDir, false, opts)
+	if err != nil {
+		return nil, fmt.Errorf("cannot clone chart git repo: %s", err)
+	}
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get worktree: %s", err)
+	}
+
+	params, _ := url.ParseQuery(gitAddress.RawQuery)
+	if v, found := params["path"]; found {
+		tmpDir = filepath.Join(tmpDir, v[0])
+	}
+	if v, found := params["sha"]; found {
+		err = worktree.Checkout(&git.CheckoutOptions{
+			Hash: plumbing.NewHash(v[0]),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot checkout sha: %s", err)
+		}
+	}
+	if v, found := params["tag"]; found {
+		err = worktree.Checkout(&git.CheckoutOptions{
+			Branch: plumbing.NewTagReferenceName(v[0]),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot checkout tag: %s", err)
+		}
+	}
+	if v, found := params["branch"]; found {
+		err = worktree.Checkout(&git.CheckoutOptions{
+			Branch: plumbing.NewRemoteReferenceName("origin", v[0]),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot checkout branch: %s", err)
+		}
+	}
+
+	f, err := os.ReadFile(filepath.Join(tmpDir, "variables.tf"))
+	if err != nil {
+		return nil, fmt.Errorf("cannot open file: %s", err)
+	}
+
+	return f, nil
 }

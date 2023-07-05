@@ -1,0 +1,79 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "$id": "/schemas/my-id",
+    "type": "array",
+    "default": [],
+    "title": "Terraform Variables Schema",
+    "items": {
+        "type": "object",
+        "required": [
+            "name",
+            "type",
+            "description",
+            "default",
+            "required"
+        ],
+        "properties": {
+            "name": {
+                "type": "string",
+                "examples": [
+                    "database",
+                    "user"
+                ]
+            },
+            "type": {
+                "type": "string",
+                "examples": [
+                    "string"
+                ]
+            },
+            "description": {
+                "type": "string",
+                "examples": [
+                    "Name of the database to create",
+                    "Name of the user to access the database"
+                ]
+            },
+            "default": {
+                "type": "string"
+            },
+            "required": {
+                "type": "boolean"
+            }
+        },
+        "examples": [
+            {
+                "name": "database",
+                "type": "string",
+                "description": "Name of the database to create",
+                "default": "string",
+                "required": true
+            },
+            {
+                "name": "user",
+                "type": "string",
+                "description": "Name of the user to access the database",
+                "default": "string",
+                "required": true
+            }
+        ]
+    },
+    "examples": [
+        [
+            {
+                "name": "database",
+                "type": "string",
+                "description": "Name of the database to create",
+                "default": "string",
+                "required": true
+            },
+            {
+                "name": "user",
+                "type": "string",
+                "description": "Name of the user to access the database",
+                "default": "string",
+                "required": true
+            }
+        ]
+    ]
+}

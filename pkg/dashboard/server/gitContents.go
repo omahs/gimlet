@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gimlet-io/gimlet-cli/cmd/dashboard/dynamicconfig"
+	"github.com/gimlet-io/gimlet-cli/pkg/commands/manifest"
 	"github.com/gimlet-io/gimlet-cli/pkg/dashboard/api"
 	"github.com/gimlet-io/gimlet-cli/pkg/dashboard/model"
 	"github.com/gimlet-io/gimlet-cli/pkg/dashboard/store"
@@ -25,8 +26,10 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
+	goyaml "gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 func branches(w http.ResponseWriter, r *http.Request) {
@@ -342,7 +345,28 @@ func envConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	configsPerEnv := map[string][]dx.Manifest{}
+	terraformVariablesPerEnvPerApp := map[string]map[string][]*tfconfig.Variable{}
 	for _, config := range envConfigs {
+
+		for _, dep := range config.Dependencies {
+			tfSpec := dep.Spec.(dx.TFSpec)
+			var terraformVariables []*tfconfig.Variable
+			variablesString, err := manifest.TfVariables(tfSpec.Module.Url)
+			if err != nil {
+				logrus.Warnf("cannot get terraform variables: %s", err)
+				continue
+			}
+
+			manifest.ParseVariables(variablesString, &terraformVariables)
+			if terraformVariablesPerEnvPerApp[config.Env] == nil {
+				terraformVariablesPerEnvPerApp[config.Env] = map[string][]*tfconfig.Variable{}
+			}
+			if terraformVariablesPerEnvPerApp[config.Env][config.App] == nil {
+				terraformVariablesPerEnvPerApp[config.Env][config.App] = []*tfconfig.Variable{}
+			}
+			terraformVariablesPerEnvPerApp[config.Env][config.App] = terraformVariables
+		}
+
 		if configsPerEnv[config.Env] == nil {
 			configsPerEnv[config.Env] = []dx.Manifest{}
 		}
@@ -350,7 +374,12 @@ func envConfigs(w http.ResponseWriter, r *http.Request) {
 		configsPerEnv[config.Env] = append(configsPerEnv[config.Env], config)
 	}
 
-	configsPerEnvJson, err := json.Marshal(configsPerEnv)
+	data := map[string]interface{}{
+		"envConfigs":         configsPerEnv,
+		"terraformVariables": terraformVariablesPerEnvPerApp,
+	}
+
+	dataJson, err := json.Marshal(data)
 	if err != nil {
 		logrus.Errorf("cannot convert envconfigs to json: %s", err)
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -358,7 +387,7 @@ func envConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(configsPerEnvJson))
+	w.Write([]byte(dataJson))
 }
 
 type envConfig struct {
@@ -478,7 +507,7 @@ func saveEnvConfig(w http.ResponseWriter, r *http.Request) {
 
 	// marshall and ident the manifest
 	var toSaveBuffer bytes.Buffer
-	yamlEncoder := yaml.NewEncoder(&toSaveBuffer)
+	yamlEncoder := goyaml.NewEncoder(&toSaveBuffer)
 	yamlEncoder.SetIndent(2)
 	err = yamlEncoder.Encode(&manifest)
 	if err != nil {

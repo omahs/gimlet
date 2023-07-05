@@ -16,6 +16,7 @@ export const ACTION_TYPE_COMMITS = 'commits';
 export const ACTION_TYPE_UPDATE_COMMITS = 'updateCommits';
 export const ACTION_TYPE_BRANCHES = 'branches';
 export const ACTION_TYPE_ENVCONFIGS = 'envConfigs';
+export const ACTION_TYPE_TERRAFORM_VARIABLES = 'terraformVariables';
 export const ACTION_TYPE_SAVE_ENV_PULLREQUEST = 'updateEnvsPullRequestsOnSave';
 export const ACTION_TYPE_SAVE_REPO_PULLREQUEST = 'updateReposPullRequestsOnSave';
 export const ACTION_TYPE_ENV_PULLREQUESTS = 'envsPullRequestListUpdated';
@@ -86,6 +87,7 @@ export const initialState = {
   gitRepos: [],
   defaultChart: undefined,
   envConfigs: {},
+  terraformVariables: {},
   application: {},
   repoMetas: {},
   fileInfos: [],
@@ -153,6 +155,8 @@ export function rootReducer(state = initialState, action) {
         return eventHandlers.alerts(state, action.payload)
     case ACTION_TYPE_ENVCONFIGS:
       return eventHandlers.envConfigs(state, action.payload)
+      case ACTION_TYPE_TERRAFORM_VARIABLES:
+        return eventHandlers.terraformVariables(state, action.payload)
     case ACTION_TYPE_ADD_ENVCONFIG:
       return eventHandlers.addEnvConfig(state, action.payload)
     case ACTION_TYPE_ENV_PULLREQUESTS:

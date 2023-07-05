@@ -310,6 +310,13 @@ export function envConfigs(state, payload) {
   return state;
 }
 
+export function terraformVariables(state, payload) {
+  const repo = `${payload.owner}/${payload.repo}`;
+
+  state.terraformVariables[repo] = payload.terraformVariables;
+  return state;
+}
+
 export function addEnvConfig(state, payload) {
   if (!state.envConfigs[payload.repo][payload.env]) {
     state.envConfigs[payload.repo][payload.env] = []

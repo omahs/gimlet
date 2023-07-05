@@ -7,6 +7,7 @@ import CopiableCodeSnippet from "./copiableCodeSnippet";
 import {
   ACTION_TYPE_CHARTSCHEMA,
   ACTION_TYPE_ENVCONFIGS,
+  ACTION_TYPE_TERRAFORM_VARIABLES,
   ACTION_TYPE_REPO_METAS,
   ACTION_TYPE_ADD_ENVCONFIG,
   ACTION_TYPE_POPUPWINDOWERROR,
@@ -20,6 +21,8 @@ import { Menu } from '@headlessui/react'
 import { ChevronDownIcon } from '@heroicons/react/solid'
 import EnvVarsTable from "./envVarsTable";
 import { Switch } from '@headlessui/react'
+import TerraformUI from "./terraformUI";
+import * as variablesSchema from "./variables.schema.json"
 
 class EnvConfig extends Component {
   constructor(props) {
@@ -42,6 +45,7 @@ class EnvConfig extends Component {
       useDeployPolicy: false,
       popupWindow: reduxState.popupWindow,
       scmUrl: reduxState.settings.scmUrl,
+      terraformVariables: reduxState.terraformVariables,
 
       envs: reduxState.envs,
       repoMetas: reduxState.repoMetas,
@@ -56,7 +60,8 @@ class EnvConfig extends Component {
         envs: reduxState.envs,
         repoMetas: reduxState.repoMetas,
         popupWindow: reduxState.popupWindow,
-        scmUrl: reduxState.settings.scmUrl
+        scmUrl: reduxState.settings.scmUrl,
+        terraformVariables: reduxState.terraformVariables,
       });
 
       this.ensureRepoAssociationExists(repoName, reduxState.repoMetas);
@@ -372,6 +377,10 @@ class EnvConfig extends Component {
       return null;
     }
 
+    if (!this.state.terraformVariables) {
+      return null;
+    }
+
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold leading-tight text-gray-900">Editing {config} config for {env}
@@ -547,6 +556,10 @@ class EnvConfig extends Component {
             setValues={this.setValues}
             validate={true}
             validationCallback={this.validationCallback}
+          />
+          <TerraformUI
+          schema={variablesSchema}
+          values={this.state.terraformVariables[repoName][env][config]}
           />
           <div className="w-full mt-16">
             <ReactDiffViewer
@@ -741,12 +754,19 @@ function configFileContentFromEnvConfigs(envConfigs, repoName, env, config) {
 
 function loadEnvConfig(gimletClient, store, owner, repo) {
   gimletClient.getEnvConfigs(owner, repo)
-    .then(envConfigs => {
+    .then(data => {
       store.dispatch({
         type: ACTION_TYPE_ENVCONFIGS, payload: {
           owner: owner,
           repo: repo,
-          envConfigs: envConfigs
+          envConfigs: data.envConfigs
+        }
+      });
+      store.dispatch({
+        type: ACTION_TYPE_TERRAFORM_VARIABLES, payload: {
+          owner: owner,
+          repo: repo,
+          terraformVariables: data.terraformVariables
         }
       });
     }, () => {/* Generic error handler deals with it */

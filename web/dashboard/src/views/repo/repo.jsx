@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import {
   ACTION_TYPE_BRANCHES,
   ACTION_TYPE_ENVCONFIGS,
+  ACTION_TYPE_TERRAFORM_VARIABLES,
   ACTION_TYPE_COMMITS,
   ACTION_TYPE_DEPLOY,
   ACTION_TYPE_DEPLOY_STATUS,
@@ -136,12 +137,19 @@ export default class Repo extends Component {
     });
 
     this.props.gimletClient.getEnvConfigs(owner, repo)
-      .then(envConfigs => {
+      .then(data => {
         this.props.store.dispatch({
           type: ACTION_TYPE_ENVCONFIGS, payload: {
             owner: owner,
             repo: repo,
-            envConfigs: envConfigs
+            envConfigs: data.envConfigs
+          }
+        });
+        this.props.store.dispatch({
+          type: ACTION_TYPE_TERRAFORM_VARIABLES, payload: {
+            owner: owner,
+            repo: repo,
+            terraformVariables: data.terraformVariables
           }
         });
       }, () => {/* Generic error handler deals with it */
@@ -201,12 +209,19 @@ export default class Repo extends Component {
 
   refreshConfigs(owner, repo) {
     this.props.gimletClient.getEnvConfigs(owner, repo)
-      .then(envConfigs => {
+      .then(data => {
         this.props.store.dispatch({
           type: ACTION_TYPE_ENVCONFIGS, payload: {
             owner: owner,
             repo: repo,
-            envConfigs: envConfigs
+            envConfigs: data.envConfigs
+          }
+        });
+        this.props.store.dispatch({
+          type: ACTION_TYPE_TERRAFORM_VARIABLES, payload: {
+            owner: owner,
+            repo: repo,
+            terraformVariables: data.terraformVariables
           }
         });
       }, () => {/* Generic error handler deals with it */
